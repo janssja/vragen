@@ -6,7 +6,8 @@ from openai import OpenAI
 import os
 
 antwoorden = {}
-api_key = os.getenv("OPENAI_API_KEY")
+
+api_key = st.secrets["openai_secret_key"]
 
 def genereer_feedback(antwoorden_lijst):
     client = OpenAI(api_key=api_key)
