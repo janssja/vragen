@@ -5,7 +5,9 @@ import openai
 from openai import OpenAI
 import os
 
-antwoorden = {}
+# Initializeer antwoorden lijst binnen de sessiestatus indien nog niet bestaat
+if 'antwoorden' not in st.session_state:
+    st.session_state['antwoorden'] = []
 
 api_key = st.secrets["openai_secret_key"]
 
@@ -76,67 +78,68 @@ def vraag_en_antwoord_opslaan(vraag, antwoord):
     st.session_state.antwoorden.append({vraag: antwoord})
 
 def toon_vragen_en_verzamel_antwoorden(gecombineerde_vragen):
-    huidige_vraag_nummer = st.session_state.huidige_vraag
-    vraag = gecombineerde_vragen[huidige_vraag_nummer]
+    if 'huidige_vraag' not in st.session_state:
+        st.session_state['huidige_vraag'] = 0
+        
+    huidige_vraag_nummer = st.session_state['huidige_vraag']
+    
+    if huidige_vraag_nummer < len(gecombineerde_vragen):
+        vraag = gecombineerde_vragen[huidige_vraag_nummer]
 
-    st.header(f"Vraag {huidige_vraag_nummer+1} van {len(gecombineerde_vragen)}")
-    st.write(vraag)
+        st.write(vraag)
 
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        if st.button("False Negative"):
-            vraag_en_antwoord_opslaan(vraag, "False Negative")
-            st.session_state.huidige_vraag += 1
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            if st.button("False Negative", key=f"fn_{huidige_vraag_nummer}"):
+                st.session_state.antwoorden.append({vraag: "False Negative"})
+                st.session_state.huidige_vraag += 1
 
-    with col2:
-        if st.button("Geen van beide"):
-            vraag_en_antwoord_opslaan(vraag, "Geen van beide")
-            st.session_state.huidige_vraag += 1
+        with col2:
+            if st.button("Geen van beide", key=f"gvb_{huidige_vraag_nummer}"):
+                st.session_state.antwoorden.append({vraag: "Geen van beide"})
+                st.session_state.huidige_vraag += 1
 
-    with col3:
-        if st.button("False Positive"):
-            vraag_en_antwoord_opslaan(vraag, "False Positive")
-            st.session_state.huidige_vraag += 1
+        with col3:
+            if st.button("False Positive", key=f"fp_{huidige_vraag_nummer}"):
+                st.session_state.antwoorden.append({vraag: "False Positive"})
+                st.session_state.huidige_vraag += 1
+
+        # Update de progress bar direct na het tonen van elke vraag
+        st.progress((huidige_vraag_nummer + 1) / len(gecombineerde_vragen))
+
+
+def toon_generatie_scherm():
+    st.subheader("Generatie van feedback met generatieve AI")
+    st.markdown("""
+    Alle vragen zijn beantwoord. Klik op de onderstaande knop om feedback te genereren. 
+    Jouw antwoorden zijn anoniem. Wil je meer in detail leren over False Positives en False Negatives?
+    
+    Vanuit Happy 2 Change voorzien we inspiratie en opleiding. 
+    Contacteer ons via [jackie@happy2change.be](mailto:jackie@happy2change.be) 
+    of via onze website: [happy2change.be](https://happy2change.be).
+    """, unsafe_allow_html=True)
+    
+    if st.button("Genereer feedback"):
+        with st.spinner('Even geduld alstublieft, uw feedback wordt gegenereerd...'):
+            feedback = genereer_feedback(st.session_state.antwoorden)
+            st.success("De feedback is gegenereerd.")
+            st.write(feedback)
+        # Reset voor een nieuwe sessie
+        st.session_state.huidige_vraag = 0
+        st.session_state.antwoorden = []
 
 
 # Hoofdapp
 def main():
     st.title("False Positives en False Negatives")
-
-    if 'huidige_vraag' not in st.session_state:
-        st.session_state.huidige_vraag = 0
-        st.session_state.antwoorden = []
-
+    
     vragen = laad_vragen()
     gecombineerde_vragen = selecteer_willekeurige_vragen(vragen['duidelijke_voorkeur'] + vragen['organisatorische_keuze'])
 
-    if st.session_state.huidige_vraag < len(gecombineerde_vragen):
-        toon_vragen_en_verzamel_antwoorden(gecombineerde_vragen)
-    else:
-        # Als alle vragen beantwoord zijn
-        if st.session_state.huidige_vraag == len(gecombineerde_vragen):
-            st.subheader("Generatie van feedback met generatieve AI")
-            
-            st.markdown("""
-            Alle vragen zijn beantwoord. Klik op de onderstaande knop om feedback te genereren. 
-            Jouw antwoorden zijn anoniem. Wil je meer in detail leren over False Positives en False Negatives?
-            
-            Vanuit Happy 2 Change voorzien we inspiratie en opleiding. 
-            Contacteer ons via [jackie@happy2change.be](mailto:jackie@happy2change.be) 
-            of via onze website: [happy2change.be](https://happy2change.be).
-            """, unsafe_allow_html=True)
-            
-            if st.button("Genereer feedback"):
-                with st.spinner('Even geduld alstublieft, uw feedback wordt gegenereerd...'):
-                    feedback = genereer_feedback(st.session_state.antwoorden)
-                    st.success("De feedback is gegenereerd.")
-                    st.write(feedback)
-                # Reset voor een nieuwe sessie
-                st.session_state.huidige_vraag = 0
-                st.session_state.antwoorden = []
-
-        st.progress((st.session_state.huidige_vraag) / len(gecombineerde_vragen))
-
+    toon_vragen_en_verzamel_antwoorden(gecombineerde_vragen)
+    
+    if 'huidige_vraag' in st.session_state and st.session_state.huidige_vraag >= len(gecombineerde_vragen):
+        toon_generatie_scherm()
 
 if __name__ == "__main__":
     main()
